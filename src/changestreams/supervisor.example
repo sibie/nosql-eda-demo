@@ -1,0 +1,72 @@
+; Conf file to manage changestream listeners for MongoDB.
+; Supervisor sample ref --> https://github.com/Supervisor/supervisor/blob/main/supervisor/skel/sample.conf
+; $CHANGESTREAM_DIR needs to be set in the supervisor environment before running.
+
+; We can use 'priority' if we want to have some order in which listeners are initiated.
+; We only need stderr params for logging as Python INFO/DEBUG will go there by default.
+; If we want to force logging to go to stfout, we can use redirect_stderr=true.
+
+; Useful commands
+; supervisord -c /PATH/CONF_FILE.conf --> Start supervisor using conf file indicated.
+
+; supervisorctl reload           --> Restarts the remote supervisord.
+; supervisorctl reread           --> Reload the daemon's config files without add/remove (no restarts).
+
+; supervisorctl pid all          --> Get PIDs of all child processes.
+; supervisorctl start all        --> Start all processes.
+; supervisorctl restart all      --> Restart all processes.
+; supervisorctl status           --> Get all process status info.
+; supervisorctl stop all         --> Stop all processes.
+
+; You can run pid, start, restart, status and stop commands for a specific process by adding <name> to the command (instead of all).
+
+; Notes on different supervisor parameters
+;
+; minfds    --> min. avail startup file descriptors.
+; minprocs  -->  min. avail process descriptors.
+;
+; logfile_maxbytes --> The maximum size of log file before it is moved to a backup file and new log created.
+;                      The latest backup is always renamed as FILE_NAME.1.log, while subsequent files are
+;                      renamed to FILE_NAME.2.log, FILE_NAME.3.log, etc until backup limit is reached.
+;
+; logfile_backups  --> The number of backups saved before the oldest backup is deleted.
+;
+; events_enabled and capture parameters are advanced features we could look into later, not added for now.
+
+[supervisord]
+logfile=%(ENV_CHANGESTREAM_DIR)s/supervisord.log
+logfile_maxbytes=50MB
+logfile_backups=10
+loglevel=info
+pidfile=%(ENV_CHANGESTREAM_DIR)s/supervisord.pid
+nodaemon=false
+silent=false
+minfds=1024
+minprocs=200
+
+[supervisorctl]
+serverurl=http://127.0.0.1:9001
+;username=chris              ; should be same as in [*_http_server] if set
+;password=123                ; should be same as in [*_http_server] if set
+
+; Security Warning:
+;  The inet HTTP server is not enabled by default.  The inet HTTP server is
+;  enabled by uncommenting the [inet_http_server] section below.  The inet
+;  HTTP server is intended for use within a trusted environment only.  It
+;  should only be bound to localhost or only accessible from within an
+;  isolated, trusted network.  The inet HTTP server does not support any
+;  form of encryption.  The inet HTTP server does not use authentication
+;  by default (see the username= and password= options to add authentication).
+;  Never expose the inet HTTP server to the public internet.
+
+[inet_http_server]
+port = 127.0.0.1:9001
+;username=user              ; default is no username (open server)
+;password=123               ; default is no password (open server)
+
+; The rpcinterface:supervisor section must remain in the config file for
+; RPC (supervisorctl/web interface) to work.  Additional interfaces may be
+; added by defining them in separate [rpcinterface:x] sections.
+
+[rpcinterface:supervisor]
+supervisor.rpcinterface_factory = supervisor.rpcinterface:make_main_rpcinterface

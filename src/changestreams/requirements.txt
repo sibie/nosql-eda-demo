@@ -1,0 +1,10 @@
+httpx
+pymongo
+python-dotenv
+python-jose
+setuptools~=67.3.2
+tenacity
+supervisor
+azure-identity
+azure-appconfiguration-provider>=1.0.0b2
+azure-eventgrid
