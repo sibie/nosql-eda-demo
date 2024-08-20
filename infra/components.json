@@ -1,0 +1,20 @@
+{
+    "storageAccount": {
+        "name": "demo",
+        "allowBlobPublicAccess": true
+    },
+    "storageContainers": [
+        {
+            "name": "secure",
+            "publicAccess": "None"
+        },
+        {
+            "name": "deadlettered-events",
+            "publicAccess": "None"
+        },
+        {
+            "name": "public",
+            "publicAccess": "Blob"
+        }
+    ]
+}
