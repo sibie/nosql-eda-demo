@@ -14,7 +14,7 @@ from dotenv import load_dotenv
 AZ_APPCONFIG_ENDPOINT = os.getenv("CONFIG_ENDPOINT")
 
 
-# Function to load stream configuration data from Azure App Config (or env if $RUN_ENV=LOCAL).
+# Method to load configuration details from Azure App Config (or .env if $RUN_ENV=LOCAL).
 def load_config(label_filter: str = "\0") -> (dict | AzureAppConfigurationProvider):
     if os.getenv("RUN_ENV") == "LOCAL":
         return load_config_from_env()
@@ -33,16 +33,28 @@ def load_config(label_filter: str = "\0") -> (dict | AzureAppConfigurationProvid
     )
 
 
-# Function to load stream configuration data from the environment (during debugging).
+# Function to load configuration details from .env.
 def load_config_from_env() -> dict:
     dotenv_path = join(dirname(__file__), ".env")
     load_dotenv(dotenv_path)
 
     return {
-        "DB_CONNECTION_STRING": os.getenv("DB_CONNECTION_STRING"),
-        "DB_NAME": os.getenv("DB_NAME"),
+        "API_DB_CONNECTION_STRING": os.getenv("API_DB_CONNECTION_STRING"),
+        "API_DB_NAME": os.getenv("API_DB_NAME"),
+        "AUDIT_DB_CONNECTION_STRING": os.getenv("AUDIT_DB_CONNECTION_STRING"),
+        "AUDIT_DB_NAME": os.getenv("AUDIT_DB_NAME"),
         "TOKEN_COLLECTION": os.getenv("TOKEN_COLLECTION"),
         "AUDITLOG_ENDPOINT": os.getenv("AUDITLOG_ENDPOINT"),
         "EVENT_DOMAIN_ENDPOINT": os.getenv("EVENT_DOMAIN_ENDPOINT"),
         "FAILED_AUDITLOGS_TOPIC": os.getenv("FAILED_AUDITLOGS_TOPIC"),
     }
+
+
+# Simple implementation as we only have 2 jobs.
+def get_connection_str_by_job(config, job):
+    return config["API_DB_CONNECTION_STRING"] if job == "audit" else config["AUDIT_DB_CONNECTION_STRING"]
+
+
+# Simple implementation as we only have 2 jobs.
+def get_db_name_by_job(config, job):
+    return config["API_DB_NAME"] if job == "audit" else config["AUDIT_DB_NAME"]

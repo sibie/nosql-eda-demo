@@ -8,48 +8,47 @@ from config import load_config
 # -> Changestream listeners on all API collections to post to Auditlogs service.
 # -> Changestream listeners on all auditlog collections to post to Event Grid topic.
 
-# Sample program block for an source collection listener.
+# Sample program block for an API collection listener.
 api_collection_program_block = [
-    "[program:<REPLACE>_to_auditlogs] ; Listen to '<REPLACE>' collection and create auditlogs for observed changes.",
+    "[program:audit_<REPLACE>] ; Listen to '<REPLACE>' collection and audit observed change events.",
     "directory=%(ENV_CHANGESTREAM_DIR)s",
     "priority=999",
     "autostart=true",
     "startsecs=1",
     "startretries=3",
     "autorestart=true",
-    "command=python3 -u changestream.py <REPLACE> auditlogs",
-    "stderr_logfile=%(ENV_CHANGESTREAM_DIR)s/logs/<REPLACE>_to_auditlogs.log",
+    "command=python3 -u main.py audit <REPLACE>",
+    "stderr_logfile=%(ENV_CHANGESTREAM_DIR)s/logs/audit_<REPLACE>.log",
     "stderr_logfile_maxbytes=25MB",
     "stderr_logfile_backups=0",
 ]
 
-# Sample program block for an auditlog collection listener.
+# Sample program block for an audit collection listener.
 auditlog_collection_program_block = [
-    "[program:<REPLACE>_to_event_grid] ; Listen to '<REPLACE>' collection and post to Event Grid topic'",
+    "[program:publish_<REPLACE>] ; Listen to '<REPLACE>' collection and publish to Event Grid topic'",
     "directory=%(ENV_CHANGESTREAM_DIR)s",
     "priority=999",
     "autostart=true",
     "startsecs=1",
     "startretries=3",
     "autorestart=true",
-    "command=python3 -u changestream.py <REPLACE> event_publisher",
-    "stderr_logfile=%(ENV_CHANGESTREAM_DIR)s/logs/<REPLACE>_to_event_grid.log",
+    "command=python3 -u main.py publish <REPLACE>",
+    "stderr_logfile=%(ENV_CHANGESTREAM_DIR)s/logs/publish_<REPLACE>.log",
     "stderr_logfile_maxbytes=25MB",
     "stderr_logfile_backups=0",
 ]
 
 
 # Function to pick up list of collections in the DB.
-def get_collection_list():
-    # Ensure $RUN_ENV=LOCAL is set so config is taken from environment.
-    config = load_config()
-    print("Configuration loaded.")
-
+def get_collection_list(config: dict, connection_str: str, db_name: str):
     # Connecting to the DB and retrieving collection list.
-    mongo_client = MongoClient(config["DB_CONNECTION_STRING"])
-    db = mongo_client[config["DB_NAME"]]
+    mongo_client = MongoClient(config[connection_str])
+    db = mongo_client[config[db_name]]
     collections = db.list_collection_names()
-    print("Collection list retrieved.")
+
+    # Remove tokens collection if present, it is specific to changestreams.
+    if config["TOKEN_COLLECTION"] in collections:
+        collections.remove(config["TOKEN_COLLECTION"])
 
     # Close the connection and return the collection list.
     mongo_client.close()
@@ -57,9 +56,9 @@ def get_collection_list():
 
 
 # Function to generate a conf program block for a collection.
-def generate_program_block(collection: str):
+def generate_program_block(collection: str, source: str):
     block: list = []
-    if "auditlogs" in collection:
+    if source == "audit":
         block.extend(
             line.replace("<REPLACE>", collection)
             for line in auditlog_collection_program_block
@@ -74,8 +73,24 @@ def generate_program_block(collection: str):
 
 # Function to generate the supervisor conf file in changestreams dir.
 def generate_conf():
+    # Ensure $RUN_ENV=LOCAL is set so config is taken from environment.
+    config = load_config()
+    print("Configuration loaded.")
+
     # Getting collection list.
-    collections = get_collection_list()
+    api_collections = get_collection_list(
+        config=config,
+        connection_str=config["API_DB_CONNECTION_STRING"],
+        db_name=config["API_DB_NAME"],
+    )
+    print("API collection list retrieved.")
+
+    audit_collections = get_collection_list(
+        config=config,
+        connection_str=config["AUDIT_DB_CONNECTION_STRING"],
+        db_name=config["AUDIT_DB_NAME"],
+    )
+    print("Audit collection list retrieved.")
 
     # Deleting old conf file if present.
     if os.path.exists("supervisord.conf"):
@@ -93,13 +108,21 @@ def generate_conf():
         print("Added base configuration for supervisor.")
 
         # Generating program block for each collection and adding to conf.
-        for collection in collections:
-            program_block = generate_program_block(collection)
+        for collection in api_collections:
+            program_block = generate_program_block(collection, "api")
             for line in program_block:
                 file.write(line)
                 file.write("\n")
             file.write("\n")
-            print(f"Added program block for {collection} collection.")
+            print(f"Added program block for {collection} API collection.")
+        
+        for collection in audit_collections:
+            program_block = generate_program_block(collection, "audit")
+            for line in program_block:
+                file.write(line)
+                file.write("\n")
+            file.write("\n")
+            print(f"Added program block for {collection} audit collection.")
 
 
 if __name__ == "__main__":

@@ -24,7 +24,7 @@ def backup_failed_event(config: dict, collection: str, payload: dict):
     )
 
 
-# Makes an API call to auditlog service to document change event details.
+# Makes an API call to audit service to store change event details.
 class Job(JobInterface):
     # Randomly wait up to 2^x * 1 seconds between each retry attempt until the range reaches 60s.
     # Then wait randomly up to 60 seconds afterwards.

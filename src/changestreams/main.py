@@ -5,6 +5,7 @@ import sys
 
 from pymongo import MongoClient
 from pymongo.collection import Collection
+from pymongo.database import Database
 from tenacity import (
     RetryError,
     Retrying,
@@ -14,14 +15,14 @@ from tenacity import (
 )
 
 from changestream import manage_change_stream
-from config import load_config
-from exceptions import StreamInterruptedException
+from config import get_connection_str_by_job, get_db_name_by_job, load_config
+from exceptions import StreamInterruptionException
 from utils import setup_logging, validate_args
 
 
 # Starts a changestream on a single collection, running a specific job on every observed change event.
-# Command syntax --> python main.py <collection> <task> <env>
-# Sample command --> python main.py posts auditlogs
+# Command syntax --> python main.py <job> <collection> <env>
+# Sample command --> python main.py audit posts
 # [REQUIRED] collection --> The DB collection to set up a change stream for.
 # [REQUIRED] job --> The job to run on each event, matches with corresponding file in /jobs directory.
 # [OPTIONAL] env --> Azure App Config label (indicating env) to use when retrieving config data.
@@ -33,8 +34,8 @@ def main():
 
     # Get the collection to listen to and the job to run on each change event.
     try:
-        collection = sys.argv[1]
-        job = sys.argv[2]
+        job = sys.argv[1]
+        collection = sys.argv[2]
         env = sys.argv[3] if len(sys.argv) == 4 else "\0"  # \0 -> (No Label)
 
     except IndexError:
@@ -80,8 +81,21 @@ def main():
                 # [STEP 2] Setting up connection to the DB.
 
                 try:
-                    mongo_client: MongoClient = MongoClient(config["DB_CONNECTION_STRING"])
+                    # We have assumed that main API DB is separate from audit DB.
+                    # So we need to identify which to connect to based on the job.
+                    connection_str = get_connection_str_by_job(config, job)
+                    db_name = get_db_name_by_job(config, job)
+
+                    db_client: MongoClient = MongoClient(connection_str)
+                    db: Database = db_client[db_name]
                     logger.info("Successfully connected to the database.")
+
+                    # Typically the collection will be auto-created if it doesn't exist.
+                    # To avoid this, we check if it exists before proceeding.
+                    if collection not in db.list_collection_names():
+                        logger.warning(f"Collection {collection} not found in DB {db_name}")
+                        db_client.close()
+                        sys.exit()
 
                 except Exception:
                     logger.exception("Failed to connect to database.")
@@ -90,23 +104,31 @@ def main():
                 # [STEP 3] Setting up connection to target collection + tokens collection.
 
                 try:
-                    stream_target: Collection = mongo_client[config["DB_NAME"]][collection]
-                    token_target: Collection = mongo_client[config["DB_NAME"]][config["TOKEN_COLLECTION"]]
+                    stream_target: Collection = db[collection]
+                    token_target: Collection = db[config["TOKEN_COLLECTION"]]
                     logger.info("Target and token collections found in the database.")
 
                 except Exception:
                     logger.exception("Failed to find the target and/or token collections in the database.")
-                    mongo_client.close()
+                    db_client.close()
                     raise
 
                 # [STEP 4] Start and manage the change stream.
 
                 manage_change_stream(
-                    config, collection, job, env, stream_target, token_target, cls
+                    config=config,
+                    collection=collection,
+                    job=job,
+                    stream_target=stream_target,
+                    token_target=token_target,
+                    cls=cls,
                 )
                 
+                # In case the retry mechanism within manage_change_stream fails, then we
+                # raise a custom exception here in main to reset the stream from scratch.
                 logger.exception("The change stream was unexpectedly terminated.")
-                raise StreamInterruptedException
+                db_client.close()
+                raise StreamInterruptionException
 
 
 if __name__ == "__main__":

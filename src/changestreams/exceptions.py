@@ -1,5 +1,5 @@
 # Exception to be raised in case change stream was interrupted, used to initiate retry logic.
-class StreamInterruptedException(Exception):
+class StreamInterruptionException(Exception):
     pass
 
 

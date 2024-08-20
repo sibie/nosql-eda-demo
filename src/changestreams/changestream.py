@@ -47,7 +47,9 @@ def manage_change_stream(
         start = time.time()
 
         # Resource ID would be under a different key for standard docs and auditlogs.
-        if "auditlogs" in collection:
+        # Keeping it simple as this is a demo, but a more effective solution would
+        # be needed if we introduced more job types with different collection scopes.
+        if job == "publish":
             resource_id = document["fullDocument"]["resource_id"]
         else:
             resource_id = document["fullDocument"]["_id"]
