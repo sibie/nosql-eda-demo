@@ -3,7 +3,6 @@ from typing import Optional
 from azure.core.messaging import CloudEvent
 from azure.eventgrid import EventGridPublisherClient
 from azure.identity import DefaultAzureCredential
-from tenacity import retry, wait_random_exponential
 
 
 # A prefix for custom claims to avoid collisions.
