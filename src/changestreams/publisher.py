@@ -6,7 +6,7 @@ from azure.identity import DefaultAzureCredential
 
 
 # A prefix for custom claims to avoid collisions.
-SOURCE_NAMESPACE = "db-"
+_SOURCE_NAMESPACE = "db-"
 
 # Global client used for publishing events to Azure Event Grid.
 _eventgrid_client: Optional[EventGridPublisherClient] = None
@@ -42,7 +42,7 @@ def get_type(collection: str, document) -> str:
 
 def get_source(collection: str) -> str:
     prefix = collection.rsplit("_", 1)[0].replace("_", "-")
-    return SOURCE_NAMESPACE + prefix + "-events"
+    return _SOURCE_NAMESPACE + prefix + "-events"
 
 
 # Method to publish an event to an Event Grid topic.

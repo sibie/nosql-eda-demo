@@ -31,3 +31,9 @@ class FieldChange(BaseModel):
 class ListChange(BaseModel):
     index: Any = Field(...)
     item: Any = Field(...)
+
+
+# Represents a warning identified during change event inspection.
+class Warning(BaseModel):
+    type: str = Field(...)
+    description: str = Field(...)

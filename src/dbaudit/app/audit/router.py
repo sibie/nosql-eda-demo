@@ -8,6 +8,7 @@ from pymongo.errors import OperationFailure
 
 from app.audit.config import AppConfig
 from app.audit.database import (
+    close_audit_db_client,
     get_audit_db_client,
     setup_collections,
     validate_collection,
@@ -21,8 +22,9 @@ from app.audit.models import (
 )
 from app.audit.service import (
     insert_new_auditlog,
+    query_latest_log,
+    run_inspection,
     structure_changes,
-    query_previous_log,
 )
 from app.audit.utils import get_current_datetime, oid
 
@@ -68,7 +70,7 @@ async def create_auditlog(
 
     # Determining the change type and what was modified using JsonDiff.
     try:
-        latest_auditlog = await query_previous_log(collection, entity_id)
+        latest_auditlog = await query_latest_log(collection, entity_id)
 
     except OperationFailure as e:
         raise HTTPException(
@@ -76,7 +78,7 @@ async def create_auditlog(
             detail="Failed to query the latest log due to a DB issue, retrying may resolve the problem.",
         ) from e
 
-    if latest_auditlog is None:
+    if not latest_auditlog:
         operation_type = OperationType.INSERT
         changes = None
     
@@ -99,7 +101,7 @@ async def create_auditlog(
             raise HTTPException(status_code=500, detail="Internal Server Error") from e
 
     # Configuring new record to be inserted into audit trail.
-    auditlog = Auditlog(
+    auditlog: Auditlog = Auditlog(
         collection=request.collection,
         entity_id=entity_id,
         operation_type=operation_type,
@@ -107,6 +109,7 @@ async def create_auditlog(
         executed_by=executed_by,
         document=request.document,
         changes=jsonable_encoder(changes),
+        warnings=run_inspection(Auditlog.parse_obj(latest_auditlog)),
         created_at=get_current_datetime(),
     )
 
@@ -159,3 +162,12 @@ async def search_auditlogs(
     total_count = await db[request.collection].count_documents(criteria)
 
     return AuditlogSearchResult(logs=logs, total_count=total_count)
+
+
+@router.post(
+    "/refresh",
+    summary="Refresh the service to account for any changes in source API DB being monitored.",
+)
+async def refresh_service():
+    await close_audit_db_client()
+    await setup_collections()

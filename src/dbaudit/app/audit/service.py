@@ -1,4 +1,5 @@
 import logging
+from typing import List
 
 import jsondiff
 from fastapi import HTTPException
@@ -6,6 +7,7 @@ from motor.motor_asyncio import AsyncIOMotorCollection
 from pymongo.errors import OperationFailure
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_fixed
 
+from app.audit.enums import OperationType, WarningType
 from app.audit.models import Auditlog
 from app.audit.schemas import FieldChange, ListChange, PyObjectId
 
@@ -20,7 +22,7 @@ logger = logging.getLogger(__name__)
     retry=retry_if_exception_type(OperationFailure),
     wait=wait_fixed(1),
 )
-async def query_previous_log(
+async def query_latest_log(
     collection: AsyncIOMotorCollection,
     entity_id: PyObjectId,
 ):
@@ -72,6 +74,46 @@ def structure_changes(raw_data):
             raise HTTPException(status_code=500, detail="Unknown change type.")
 
     return changes
+
+
+# Method to inspect the auditlog for any custom warnings we want to document.
+# Keeping this in a separate file to avoid cluttering models.py. The number of
+# checks could be extensive, especially if we have a large number of collections.
+
+def run_inspection(latest_log: Auditlog) -> List[WarningType]:
+    warnings: List[WarningType] = []
+    
+    # In case a resource that was previously marked as deleted is reintroduced in the DB.
+    if latest_log and latest_log.operation_type == OperationType.DELETE:
+        warnings.append(WarningType.RESOURCE_ACCESS_AFTER_DELETE.format())
+    
+    # Like above, we can add any standard checks here that are applicable to all collections.
+
+    # In case of collection-specific checks, we could go for a flexible design.
+    # For example, lets say we want to check the comments collection documents
+    # for possible spam and blog_posts collection documents for profane language.
+    # Simple pseudo-code example below:
+    #
+    # def inspect_comments():
+    #     warnings: List[WarningType] = []
+    #     if log.check_for_spam():
+    #         warnings.append(WarningType.SPAM_WARNING.format())
+    #     return warnings
+    #
+    # def inspect_blog_posts():
+    #     warnings: List[WarningType] = []
+    #     if log.check_for_profanity():
+    #         warnings.append(WarningType.PROFANITY_WARNING.format())
+    #     return warnings
+    #
+    # inspection_factory: Dict[str, List[WarningType]] = {
+    #     "comments": inspect_comments(),
+    #     "blog_posts": inspect_blog_posts(),
+    # }
+    #
+    # warnings.extend(inspection_factory.get(latest_log.collection))
+
+    return warnings
 
 
 # Method to insert an auditlog into collection.

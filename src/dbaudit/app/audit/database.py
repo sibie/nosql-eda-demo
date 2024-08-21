@@ -36,6 +36,13 @@ def get_audit_db_client():
     return _audit_db_client
 
 
+# Method to close Audit DB client.
+async def close_audit_db_client():
+    global _audit_db_client
+    await _audit_db_client.close()
+    _audit_db_client = None
+
+
 # Method to create a collection in audit DB with required indexes.
 async def create_collection(collection: AsyncIOMotorCollection):
     await collection.create_indexes([
@@ -47,8 +54,8 @@ async def create_collection(collection: AsyncIOMotorCollection):
 async def setup_collections():
     global _collections_list
 
-    source_db_client = AsyncIOMotorClient(AppConfig.SOURCE_DB_CONNECTION_STRING)
-    source_db: AsyncIOMotorDatabase = source_db_client[AppConfig.SOURCE_DB_NAME]
+    source_db_client = AsyncIOMotorClient(AppConfig.API_DB_CONNECTION_STRING)
+    source_db: AsyncIOMotorDatabase = source_db_client[AppConfig.API_DB_NAME]
     _collections_list = await source_db.list_collection_names()
     source_db_client.close()
 

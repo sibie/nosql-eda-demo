@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field, root_validator
 
 from app.audit.config import AppConfig
 from app.audit.enums import OperationType
-from app.audit.schemas import PyObjectId
+from app.audit.schemas import PyObjectId, Warning
 from app.audit.utils import oid
 
 
@@ -20,7 +20,8 @@ class Auditlog(BaseModel):
     executed_at: datetime = Field(...)
     executed_by: PyObjectId = Field(...)
     document: Dict = Field(...)
-    changes: Optional[Dict]
+    changes: Optional[Dict] = Field(default_factory=dict)
+    warnings: Optional[List] = Field(default_factory=list)
     created_at: datetime = Field(...)
 
     class Config:
@@ -49,6 +50,7 @@ class Auditlog(BaseModel):
                         "2023-08-08T10:00:40.250000",
                     ],
                 },
+                "warnings": [],
                 "created_at": "2024-08-08T10:01:40.250000",
             }
         }

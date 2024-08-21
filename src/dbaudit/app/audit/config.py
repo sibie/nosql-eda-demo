@@ -10,9 +10,9 @@ class AppConfig:
     # Local audit DB instance used for development.
     DB_DEV = "mongodb://localhost:27017"
 
-    # Connection details of the source DB to be audited.
-    SOURCE_DB_CONNECTION_STRING = os.environ.get("SOURCE_DB_CONNECTION_STRING")
-    SOURCE_DB_NAME = os.environ.get("SOURCE_DB_NAME")
+    # Connection details of the source API DB to be audited.
+    API_DB_CONNECTION_STRING = os.environ.get("API_DB_CONNECTION_STRING")
+    API_DB_NAME = os.environ.get("API_DB_NAME")
 
     # For every auditlog, we need to know who made the change and when the operation was done.
     # Here we can define the field name used in our source collections, so audit endpoints
